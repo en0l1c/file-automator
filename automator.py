@@ -1,3 +1,5 @@
+#TODO refactor the code and the libraries
+
 import os
 import time
 import logging
@@ -11,21 +13,24 @@ from watchdog.events import FileSystemEventHandler
 #os.path.expanduser('~') - Finds the path of the current User
 #watchdog - Allows you to listen for changes
 
-# We check which platform the user using:
+### We check which platform the user using:
+# macOS
 if platform == 'darwin':
     print("You are using MAC")
     source_dir = os.path.expanduser('~') + '/Downloads'
     dest_dir_music = os.path.expanduser('~') + '/Music'
     dest_dir_video = os.path.expanduser('~') + '/Movies'
     dest_dir_image = os.path.expanduser('~') + '/Pictures'
-    dest_dir_docs = os.path.expanduser('~') + '/Documents'
+    dest_dir_docs = os.path.expanduser('~') + '/Documents'  
+# Linux
 elif platform == 'linux' or platform == 'linux2':
     print("You are using Linux")
     source_dir = os.path.expanduser('~') + '/Downloads'
     dest_dir_music = os.path.expanduser('~') + '/Music'
     dest_dir_video = os.path.expanduser('~') + '/Videos'
     dest_dir_image = os.path.expanduser('~') + '/Pictures'
-    dest_dir_docs = os.path.expanduser('~') + '/Documents'
+    dest_dir_docs = os.path.expanduser('~') + '/Documents' 
+# Windows
 elif platform == 'win32':
     print("You are using Windows")
     source_dir = os.path.expanduser('~') + '/Downloads'
@@ -33,54 +38,82 @@ elif platform == 'win32':
     dest_dir_video = os.path.expanduser('~') + '/Videos'
     dest_dir_image = os.path.expanduser('~') + '/Pictures'
     dest_dir_docs = os.path.expanduser('~') + '/Documents'
-    
-# with os.scandir(source_dir) as entries:
-#     for entry in entries: #this line runs for each object in the list of all entries
-#         print(entry.name)
+ 
+# Image file types
+img_extensions = [".jpg", ".jpeg", ".jpe", ".jif", ".jfif", ".jfi", ".png", ".gif", ".webp", ".tiff", ".tif", ".psd", ".raw", ".arw", ".cr2", ".nrw",
+                    ".k25", ".bmp", ".dib", ".heif", ".heic", ".ind", ".indd", ".indt", ".jp2", ".j2k", ".jpf", ".jpf", ".jpx", ".jpm", ".mj2", ".svg", ".svgz", ".ai", ".eps", ".ico"]
+# Video file types
+vid_extensions = [".webm", ".mpg", ".mp2", ".mpeg", ".mpe", ".mpv", ".ogg",
+                    ".mp4", ".mp4v", ".m4v", ".avi", ".wmv", ".mov", ".qt", ".flv", ".swf", ".avchd"]
+# Audio file types
+audio_extensions = [".m4a", ".flac", "mp3", ".wav", ".wma", ".aac"]
+# Document file types
+doc_extensions = [".doc", ".docx", ".odt",
+                       ".pdf", ".xls", ".xlsx", ".ppt", ".pptx"]   
 
+
+def makeUnique(dest, name):
+    filename, extension = os.path.splitext(name)
+    cnt = 1
+    # If the file exists then add a number to the end of the filename.
+    while os.path.exists(name):
+        name = filename + " (" + str(cnt) + ")" + extension
+        cnt += 1
+    return name
 
 def move(dest, entry, name):
     # # Check if the file (filepath) exists
-    # file_exists = os.path.exists(dest + '/' + name)
-    # # If that file already exists, then the name changed to a unique name
-    # if file_exists:
-    #     unique_name = makeUnique(name)
-    #     os.ranme(entry, unique)
-    shutil.move(entry,dest)
+    if os.path.exists(dest + '/' + name):
+        unique_name = makeUnique(dest, name)
+        old_name = os.path.join(dest, name)
+        new_name = os.path.join(dest, unique_name)
+        os.rename(old_name, new_name) # (before, after)
+    shutil.move(entry, dest)
 
+# The class runs whenever there is a change in source_dir
 class MoverHandler(FileSystemEventHandler):
     def on_modified(self, event):
         #entries - All the files in the folder
         with os.scandir(source_dir) as entries:
             for entry in entries: #this line runs for each object in the list of all entries
-                print(entry.name)
+                #print(entry.name)
                 name = entry.name
-                dest = source_dir
-                
-                if name.endswith('.wav') or name.endswith('.mp3'):
-                    #if entry.stat().st_size < 25000000 or "SFX" in name:
-                    dest = dest_dir_music
-                    move(dest, entry, name)
-                    
-                    print('success!')
-                elif name.endswith('.mov') or name.endswith('.mp4') or name.endswith('.avi'):
-                    dest = dest_dir_video
-                    move(dest, entry, name)
-                    
-                    print('success!')
+                self.check_audio_files(entry, name)
+                self.check_video_files(entry, name)
+                self.check_document_files(entry, name)
+                self.check_image_files(entry, name)
+    
+    # Check all audio files            
+    def check_audio_files(self, entry, name):
+        for audio_extension in audio_extensions:
+            if name.endswith(audio_extension) or name.endswith(audio_extension.upper()):
+                dest = dest_dir_music
+                move(dest, entry, name)
+                logging.info(f"Moved audio file: {name}")
 
-                elif name.endswith('.jpg') or name.endswith('.jpeg') or name.endswith('.png') or name.endswith('.psd') or name.endswith('.gif') or name.endswith('.svg') or name.endswith('.tiff'):
-                    dest = dest_dir_image
-                    move(dest, entry, name)
-                    
-                    print('success!')
-                elif name.endswith('.pdf') or name.endswith('.doc') or name.endswith('.docx') or name.endswith('.epub'):
-                    dest = dest_dir_docs
-                    move(dest, entry, name)
-                    
-                    print('success!')
-
-                
+    # Check all video files
+    def check_video_files(self, entry, name):
+        for vid_extension in vid_extensions:
+            if name.endswith(vid_extension) or name.endswith(vid_extension.upper()):
+                dest = dest_dir_video
+                move(dest, entry, name)
+                logging.info(f"Moved video file: {name}")
+    
+    # Check all document files           
+    def check_document_files(self, entry, name):
+        for doc_extension in doc_extensions:
+            if name.endswith(doc_extension) or name.endswith(doc_extension.upper()):
+                dest = dest_dir_docs
+                move(dest, entry, name)
+                logging.info(f"Moved document file: {name}")
+      
+    # Check all image files          
+    def check_image_files(self, entry, name):
+        for img_extension in img_extensions:
+            if name.endswith(img_extension) or name.endswith(img_extension.upper()):
+                dest = dest_dir_image
+                move(dest, entry, name)
+                logging.info(f"Moved image file: {name}")
         
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO,
